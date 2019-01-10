@@ -49,7 +49,7 @@
 #define 	TRX4M_VER_MAJOR			255	// 0xFF denote compile in System Workbench
 #define 	TRX4M_VER_MINOR			22
 #define 	TRX4M_VER_RELEASE		0
-#define 	TRX4M_VER_BUILD			40
+#define 	TRX4M_VER_BUILD			42
 //
 #define		ATTRIB_STRING1			"Additional Contributions by"
 #define		ATTRIB_STRING2			"KA7OEI and the Open Source and"
