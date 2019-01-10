@@ -1,0 +1,3 @@
+0.8 Logic F7 option CPU:
+
+STM32F746VGT6 , FN 248-4971
