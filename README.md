@@ -19,7 +19,7 @@ not the mcHF project directory! In Eclipse, unlike other IDEs, the Workspace
 is settings holder, not projects grouping method!
 
 - Import the mcHF project from local dir or GitHub directly(point the path to
-firmware\mchf_ui_boot\project\mchf-pro-boot and make sure mchf-pro-boot is checked)
+firmware\mchf_dsp\project\mchf-dsp and make sure mchf-dsp is checked)
 
 All mcHF downloads here: http://www.m0nka.co.uk/?page_id=5269
 
