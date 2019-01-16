@@ -18,6 +18,8 @@
 // Common
 #include "mchf_board.h"
 
+#include <stdio.h>
+
 #ifdef DSP_MODE
 
 #include "audio_driver.h"
@@ -34,6 +36,8 @@ extern __IO	SpectrumDisplay			sd;
 // ------------------------------------------------
 // Frequency public
 extern __IO DialFrequency 			df;
+
+extern __IO	AudioDriverState		ads;
 
 // ------------------------------------------------
 extern ulong tune_steps[];
@@ -328,6 +332,49 @@ static void api_dsp_execute_command(void)
 		case API_ENABLE_POST:
 		{
 			api_broadcast_on = 1;
+			break;
+		}
+
+		// Write directly to public state structure
+		case API_WRITE_EEP:
+		{
+			uchar *eep = (uchar *)&ts;	// get ptr
+			ushort offset = 0,size = 0;
+
+			// Get offset
+			offset  = as.in_buffer[0x02] <<  8;
+			offset |= as.in_buffer[0x03] <<  0;
+			if(offset > sizeof(TransceiverState))
+				break;
+
+			// Get size
+			size = as.in_buffer[0x04];
+			if(size > 4)
+				break;
+
+			// Write directly
+			switch(size)
+			{
+				// uchar
+				case 1:
+					*(eep + offset + 0) = as.in_buffer[0x08];
+					break;
+				// ushort
+				case 2:
+					*(eep + offset + 0) = as.in_buffer[0x08];
+					*(eep + offset + 1) = as.in_buffer[0x07];
+					break;
+				// ulong
+				case 4:
+					*(eep + offset + 0) = as.in_buffer[0x08];
+					*(eep + offset + 1) = as.in_buffer[0x07];
+					*(eep + offset + 2) = as.in_buffer[0x06];
+					*(eep + offset + 3) = as.in_buffer[0x05];
+					break;
+				default:
+					break;
+			}
+
 			break;
 		}
 

@@ -32,6 +32,8 @@
 
 #define API_ENABLE_POST					0x0009
 
+#define API_WRITE_EEP					0x000A
+
 // Exports
 void api_dsp_init(void);
 void api_dsp_thread(void);
