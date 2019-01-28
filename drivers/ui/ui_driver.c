@@ -798,9 +798,9 @@ void ui_driver_toggle_tx(void)
 		}
 		//
 		PTT_CNTR_PIO->BSRRL  	= PTT_CNTR;		// TX on and switch CODEC audio paths
-		//#ifdef REV_08
+		#ifdef REV_08
 		if(get_pcb_rev() == 0x08) PTTN_CNTR_PIO->BSRRH = PTTN_CNTR;
-		//#endif
+		#endif
 		RED_LED_PIO->BSRRL 		= RED_LED;		// Red led on
 		//
 		// Set the PA bias according to mode
@@ -832,9 +832,9 @@ void ui_driver_toggle_tx(void)
 	{
 		was_rx = 1;								// indicate that we WERE in RX mode
 		PTT_CNTR_PIO->BSRRH  	= PTT_CNTR;		// TX off
-		//#ifdef REV_08
+		#ifdef REV_08
 		if(get_pcb_rev() == 0x08) PTTN_CNTR_PIO->BSRRL = PTTN_CNTR;
-		//#endif
+		#endif
 		RED_LED_PIO->BSRRH 		= RED_LED;		// Red led off
 		//
 		UiDriverUpdateBtmMeter(0,0);		// clear bottom meter of any outstanding indication when going back to RX

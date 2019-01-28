@@ -194,7 +194,7 @@ static void mchf_board_ptt_init(void)
 	GPIO_InitStructure.GPIO_Pin = PTT_CNTR;
 	GPIO_Init(PTT_CNTR_PIO, &GPIO_InitStructure);
 
-//#ifdef REV_08
+#ifdef REV_08
 	if(get_pcb_rev() == 0x08)
 	{
 	// RX/TX N control pin init
@@ -204,7 +204,7 @@ static void mchf_board_ptt_init(void)
 
 	PTTN_CNTR_PIO->BSRRL = PTTN_CNTR;
 	}
-//#endif
+#endif
 
 	// RX on
 	PTT_CNTR_PIO->BSRRH = PTT_CNTR;
@@ -731,9 +731,9 @@ void mchf_board_switch_tx(char mode)
 		// TX on (softrock control)
 		PTT_CNTR_PIO->BSRRL = PTT_CNTR;
 
-		//#ifdef REV_08
+		#ifdef REV_08
 		if(get_pcb_rev() == 0x08) PTTN_CNTR_PIO->BSRRH = PTTN_CNTR;
-		//#endif
+		#endif
 	}
 	else
 	{
@@ -743,9 +743,9 @@ void mchf_board_switch_tx(char mode)
 		// RX on
 		PTT_CNTR_PIO->BSRRH = PTT_CNTR;
 
-		//#ifdef REV_08
+		#ifdef REV_08
 		if(get_pcb_rev() == 0x08) PTTN_CNTR_PIO->BSRRL = PTTN_CNTR;
-		//#endif
+		#endif
 	}
 }
 

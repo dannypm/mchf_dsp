@@ -49,7 +49,7 @@
 #define 	TRX4M_VER_MAJOR			255	// 0xFF denote compile in System Workbench
 #define 	TRX4M_VER_MINOR			22
 #define 	TRX4M_VER_RELEASE		0
-#define 	TRX4M_VER_BUILD			44
+#define 	TRX4M_VER_BUILD			45
 //
 #define		ATTRIB_STRING1			"Additional Contributions by"
 #define		ATTRIB_STRING2			"KA7OEI and the Open Source and"
@@ -58,7 +58,7 @@
 // -----------------------------------------------------------------------------
 // Run as headless server - DSP mode for rev 0.8
 #define 	DSP_MODE
-#define 	REV_08			// ToDo: remove all uses in the this project!!
+//#define 	REV_08			// ToDo: remove all uses in the this project!!
 //#define 	DEBUG_BUILD
 
 #define		WD_REFRESH_WINDOW		80
