@@ -461,6 +461,12 @@ void api_dsp_irq(void)
 //* Notes    			:
 //* Context    			: CONTEXT_UI_DRIVER
 //*----------------------------------------------------------------------------
+//
+// ToDo: Split the broadcast function into three cases:
+//		 	1. General info response
+//			2. Waterfall data
+//			3. Audio driver samples broadcast for digital modes
+//
 void api_dsp_post(q15_t *fft)
 {
 	ulong k;
@@ -507,6 +513,12 @@ void api_dsp_post(q15_t *fft)
 	// Local NCO freq
 	as.ou_buffer[0x11] = df.nco_freq >>  8;
 	as.ou_buffer[0x12] = df.nco_freq >>  0;
+
+	// Return Logic board PCB revision
+	if(get_pcb_rev() == 0x08)
+		as.ou_buffer[0x13] = 0x08;
+	else
+		as.ou_buffer[0x13] = 0x07;
 
 	// Insert FFT
 	if(fft != NULL)

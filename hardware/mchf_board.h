@@ -58,7 +58,7 @@
 // -----------------------------------------------------------------------------
 // Run as headless server - DSP mode for rev 0.8
 #define 	DSP_MODE
-#define 	REV_08			// ToDo: remove all uses in the this project!!
+//#define 	REV_08			// ToDo: remove all uses in the this project!!
 //#define 	DEBUG_BUILD
 
 #define		WD_REFRESH_WINDOW		80
