@@ -378,6 +378,13 @@ static void api_dsp_execute_command(void)
 			break;
 		}
 
+		// Restart CPU
+		case API_RESTART:
+		{
+			NVIC_SystemReset();
+			break;
+		}
+
 		// Nothing
 		default:
 			df.tune_upd = 0;	// No freq update

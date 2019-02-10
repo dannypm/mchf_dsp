@@ -29,10 +29,9 @@
 #define API_UPD_STEP					0x0006
 #define API_UPD_NCO						0x0007
 #define API_CW_TX						0x0008
-
 #define API_ENABLE_POST					0x0009
-
 #define API_WRITE_EEP					0x000A
+#define API_RESTART						0x000B
 
 // Exports
 void api_dsp_init(void);
