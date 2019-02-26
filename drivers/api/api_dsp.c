@@ -272,7 +272,7 @@ static void api_dsp_execute_command(void)
 		case API_UPD_VOL:
 		{
 			// This is IRQ code, ideally do not print from here!!!
-			//printf("API_UPD_VOL\n\r");
+			//printf("API_UPD_VOL %d\n\r",as.in_buffer[2]);
 
 			if((as.in_buffer[2] < MAX_AUDIO_GAIN) && (ts.audio_gain != as.in_buffer[2]))
 				ts.audio_gain = as.in_buffer[2];
