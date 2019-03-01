@@ -50,7 +50,7 @@ extern ulong tune_steps[];
 typedef struct API_STATE
 {
 	// Transfer buffers
-	uchar ou_buffer[300];
+	uchar ou_buffer[2048];	// 300
 	uchar in_buffer[16];
 
 	// Current driver mode
@@ -62,12 +62,16 @@ typedef struct API_STATE
 // As public
 API_STATE as;
 
+static void api_dsp_samples_post(void);
+
 //uchar api_drv_dissabled = 0;
 
-// Do not broadcast until allowed by UI
-// because the CS pin could be used to enter
-// bootloader mode by the UI CPU
-uchar api_broadcast_on = 1;
+// Broadcast type
+// 0 - disabled
+// 1 - waterfall/spectrum data
+// 2 - ft8 samples
+//
+uchar api_broadcast_type = 1;
 
 uchar pub_v = 0;
 uchar led_s = 0;
@@ -208,7 +212,7 @@ static uchar api_dsp_SendByteSpiA(uint8_t byte)
 //* Notes    			:
 //* Context    			: CONTEXT_UI_DRIVER
 //*----------------------------------------------------------------------------
-static void api_dsp_to_cpu_msg(void)
+static void api_dsp_to_cpu_msg(ulong size)
 {
 	ulong i;
 
@@ -221,7 +225,7 @@ static void api_dsp_to_cpu_msg(void)
 		__asm(".hword 0x46C0");
 
 	// Send buffer - ideally via DMA
-	for(i = 0; i < 300; i++)
+	for(i = 0; i < size; i++)
 		api_dsp_SendByteSpiA(as.ou_buffer[i]);
 
 	// CS high - restore bus state
@@ -328,10 +332,17 @@ static void api_dsp_execute_command(void)
 			break;
 		}
 
-		// Enable broadcast
-		case API_ENABLE_POST:
+		// Change broadcast mode
+		case API_BROADCAST_MODE:
 		{
-			api_broadcast_on = 1;
+			api_broadcast_type = as.in_buffer[0x02];
+
+			// Switch on the decimation handler in the UI driver while in FT8 mode
+			if(api_broadcast_type == 2)
+				ts.dvmode = 1;
+			else
+				ts.dvmode = 0;
+
 			break;
 		}
 
@@ -423,8 +434,16 @@ void api_dsp_init(void)
 void api_dsp_thread(void)
 {
 	ushort i;
+	ulong timeout = 5000;
 
-	if(pro_s < 5000)
+	if(api_broadcast_type == 2)
+		timeout = 10;
+
+	// Re-route audio driver samples to UI board
+	// in FT8 mode
+	//api_dsp_samples_post();
+
+	if(pro_s < timeout)
 	{
 		pro_s++;
 		return;
@@ -432,6 +451,8 @@ void api_dsp_thread(void)
 	pro_s = 0;
 
 	led_s = !led_s;
+
+	api_dsp_samples_post();
 }
 
 //*----------------------------------------------------------------------------
@@ -453,6 +474,30 @@ void api_dsp_irq(void)
 	api_dsp_execute_command();
 }
 
+ulong 	sample_count = 0;
+#define SAMPLE_CNT		512
+
+static void api_dsp_samples_post(void)
+{
+	if(api_broadcast_type != 2)
+		return;
+
+	printf("sample_count %d\n\r",sample_count);
+
+	if(sample_count < SAMPLE_CNT)
+		return;
+
+	// ----------------------
+	// Header
+	as.ou_buffer[0x00] = 0x77; 						// signature
+	as.ou_buffer[0x01] = 0x8A;						// signature
+
+	// Broadcast current state
+	api_dsp_to_cpu_msg(SAMPLE_CNT);
+
+	sample_count -= SAMPLE_CNT;
+}
+
 //*----------------------------------------------------------------------------
 //* Function Name       : api_dsp_post
 //* Object              : send and receive
@@ -472,8 +517,8 @@ void api_dsp_post(q15_t *fft)
 	ulong k;
 	ulong tune_loc;
 
-	// Broadcast enabled ?
-	if(!api_broadcast_on)
+	// Broadcast required for waterfall/scope data ?
+	if(api_broadcast_type != 1)
 		return;
 
 	//tune_loc = df.tune_new;
@@ -537,7 +582,7 @@ void api_dsp_post(q15_t *fft)
 	as.ou_buffer[299] = 0xAA;
 
 	// Broadcast current state
-	api_dsp_to_cpu_msg();
+	api_dsp_to_cpu_msg(300);
 
 	pub_v++;
 }

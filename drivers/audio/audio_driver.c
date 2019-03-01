@@ -1277,6 +1277,9 @@ static void audio_rx_processor(int16_t *src, int16_t *dst, int16_t size)
 //* Output Parameters   :
 //* Functions called    :
 //*----------------------------------------------------------------------------
+
+extern ulong sample_count;
+
 static void audio_dv_rx_processor(int16_t *src, int16_t *dst, int16_t size)
 {
 
@@ -1391,6 +1394,12 @@ static void audio_dv_rx_processor(int16_t *src, int16_t *dst, int16_t size)
 	//
 	// ***************************************************************************************************
 	//
+
+	//sample_count = psize;						// 16
+	//sample_count = size;						// 64
+	//sample_count = ads.decimation_rate;		// 4
+	sample_count += psize;
+
 	//
 	// Calculate scaling based on decimation rate since this affects the audio gain
 	//
