@@ -47,6 +47,11 @@ extern ulong tune_steps[];
 //#define STATE_COMMAND_PROC			1
 //#define STATE_BROADCAST				2
 
+#define BUFFERSIZE                       300
+
+//uchar aTxBuffer[BUFFERSIZE];
+uchar aRxBuffer [BUFFERSIZE];
+
 typedef struct API_STATE
 {
 	// Transfer buffers
@@ -61,6 +66,8 @@ typedef struct API_STATE
 
 // As public
 API_STATE as;
+
+
 
 static void api_dsp_samples_post(void);
 
@@ -86,11 +93,15 @@ ulong pro_s = 0;
 //*----------------------------------------------------------------------------
 static void api_dsp_spi_init()
 {
-	GPIO_InitTypeDef GPIO_InitStructure;
-	SPI_InitTypeDef  SPI_InitStructure;
+	GPIO_InitTypeDef	GPIO_InitStructure;
+	SPI_InitTypeDef		SPI_InitStructure;
+	DMA_InitTypeDef		DMA_InitStructure;
 
 	// Enable the SPI periph
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2, ENABLE);
+
+	// Enable DMA clock
+	RCC_AHB1PeriphClockCmd(SPI2_DMA_CLK, ENABLE);
 
 	// Common SPI settings
 	GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF;
@@ -127,7 +138,7 @@ static void api_dsp_spi_init()
 	SPI_Init(SPI2, &SPI_InitStructure);
 
 	// Enable SPI2
-	SPI_Cmd(SPI2, ENABLE);
+	//SPI_Cmd(SPI2, ENABLE);
 
 	// Common misc pins settings
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
@@ -149,6 +160,43 @@ static void api_dsp_spi_init()
 	// Deselect : Chip Select high
 	//GPIO_SetBits(LCD_CS_PIO, LCD_CS);
 	GPIO_SetBits(GPIOA, GPIO_Pin_9);
+
+	// ------------------
+	// DMA configuration
+	// ------------------
+
+	// De-initialise DMA Streams
+	DMA_DeInit(SPI2_TX_DMA_STREAM);
+	DMA_DeInit(SPI2_RX_DMA_STREAM);
+
+	// Configure DMA Initialisation Structure
+	DMA_InitStructure.DMA_BufferSize = BUFFERSIZE ;
+	DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable ;
+	DMA_InitStructure.DMA_FIFOThreshold = DMA_FIFOThreshold_1QuarterFull ;
+	DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single ;
+	DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
+	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+	DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
+	DMA_InitStructure.DMA_PeripheralBaseAddr =(uint32_t) (&(SPI2->DR)) ;
+	DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+	DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
+	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+	DMA_InitStructure.DMA_Priority = DMA_Priority_High;
+
+	// Configure TX DMA
+	DMA_InitStructure.DMA_Channel = SPI2_TX_DMA_CHANNEL ;
+	DMA_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral ;
+	DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)(as.ou_buffer);
+	DMA_Init(SPI2_TX_DMA_STREAM, &DMA_InitStructure);
+
+	// Configure RX DMA
+	DMA_InitStructure.DMA_Channel = SPI2_RX_DMA_CHANNEL ;
+	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory ;
+	DMA_InitStructure.DMA_Memory0BaseAddr =(uint32_t)aRxBuffer ;
+	DMA_Init(SPI2_RX_DMA_STREAM, &DMA_InitStructure);
+
+	// Enable SPI2
+	SPI_Cmd(SPI2, ENABLE);
 }
 
 // PA4 (usually DAC) is used for IRQ from UI CPU
@@ -214,6 +262,9 @@ static uchar api_dsp_SendByteSpiA(uint8_t byte)
 //*----------------------------------------------------------------------------
 static void api_dsp_to_cpu_msg(ulong size)
 {
+	// --------------------------------------------------------------------------
+	// Normal mode
+	#if 1
 	ulong i;
 
 	// CS Low - generate IRQ in the UI CPU
@@ -231,6 +282,25 @@ static void api_dsp_to_cpu_msg(ulong size)
 	// CS high - restore bus state
 	__asm(".word 0x46C046C0");
 	GPIO_SetBits(GPIOA, GPIO_Pin_9);
+	#endif
+
+	// --------------------------------------------------------------------------
+	// DMA mode
+	#if 0
+	// CS Low - generate IRQ in the UI CPU
+	GPIO_ResetBits(GPIOA, GPIO_Pin_9);
+
+	DMA_Cmd(SPI2_TX_DMA_STREAM,ENABLE);
+	SPI_I2S_DMACmd(SPI2, SPI_I2S_DMAReq_Tx, ENABLE);
+
+	while (DMA_GetFlagStatus(SPI2_TX_DMA_STREAM,SPI2_TX_DMA_FLAG_TCIF) == RESET);
+
+	DMA_ClearFlag(SPI2_TX_DMA_STREAM,SPI2_TX_DMA_FLAG_TCIF);
+	DMA_Cmd(SPI2_TX_DMA_STREAM,DISABLE);
+
+	// CS high - restore bus state
+	GPIO_SetBits(GPIOA, GPIO_Pin_9);
+	#endif
 }
 
 //*----------------------------------------------------------------------------

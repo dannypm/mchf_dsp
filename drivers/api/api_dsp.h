@@ -33,6 +33,15 @@
 #define API_WRITE_EEP					0x000A
 #define API_RESTART						0x000B
 
+#define SPI2_DMA                       DMA2
+#define SPI2_DMA_CLK                   RCC_AHB1Periph_DMA2
+#define SPI2_TX_DMA_CHANNEL            DMA_Channel_0
+#define SPI2_TX_DMA_STREAM             DMA2_Stream4
+#define SPI2_TX_DMA_FLAG_TCIF          DMA_FLAG_TCIF4
+#define SPI2_RX_DMA_CHANNEL            DMA_Channel_0
+#define SPI2_RX_DMA_STREAM             DMA2_Stream3
+#define SPI2_RX_DMA_FLAG_TCIF          DMA_FLAG_TCIF3
+
 // Exports
 void api_dsp_init(void);
 void api_dsp_thread(void);
