@@ -43,14 +43,12 @@ extern __IO	AudioDriverState		ads;
 extern ulong tune_steps[];
 
 // ------------------------------------------------
-//#define STATE_IDLE					0
-//#define STATE_COMMAND_PROC			1
-//#define STATE_BROADCAST				2
-
+//
 #define BUFFERSIZE                       300
-
 //uchar aTxBuffer[BUFFERSIZE];
 uchar aRxBuffer [BUFFERSIZE];
+// ------------------------------------------------
+// ------------------------------------------------
 
 typedef struct API_STATE
 {
@@ -58,31 +56,35 @@ typedef struct API_STATE
 	uchar ou_buffer[2048];	// 300
 	uchar in_buffer[16];
 
-	// Current driver mode
-	//uchar mode;
+	// Broadcast type
+	// 0 - disabled
+	// 1 - waterfall/spectrum data
+	// 2 - ft8 samples
+	//
+	uchar api_broadcast_type;
+
+	uchar pub_v;
+	uchar led_s;
+	ulong pro_s;
 
 	//
 } API_STATE;
 
-// As public
-API_STATE as;
-
-
-
 static void api_dsp_samples_post(void);
 
-//uchar api_drv_dissabled = 0;
+// As public
+API_STATE as;
 
 // Broadcast type
 // 0 - disabled
 // 1 - waterfall/spectrum data
 // 2 - ft8 samples
 //
-uchar api_broadcast_type = 1;
-
-uchar pub_v = 0;
-uchar led_s = 0;
-ulong pro_s = 0;
+//uchar api_broadcast_type = 1;
+//
+//uchar pub_v = 0;
+//uchar led_s = 0;
+//ulong pro_s = 0;
 
 //*----------------------------------------------------------------------------
 //* Function Name       : UiLcdHy28_SpiInit
@@ -100,8 +102,10 @@ static void api_dsp_spi_init()
 	// Enable the SPI periph
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2, ENABLE);
 
+	#ifdef API_DMA_MODE
 	// Enable DMA clock
-	RCC_AHB1PeriphClockCmd(SPI2_DMA_CLK, ENABLE);
+	//RCC_AHB1PeriphClockCmd(SPI2_DMA_CLK, ENABLE);
+	#endif
 
 	// Common SPI settings
 	GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF;
@@ -161,47 +165,53 @@ static void api_dsp_spi_init()
 	//GPIO_SetBits(LCD_CS_PIO, LCD_CS);
 	GPIO_SetBits(GPIOA, GPIO_Pin_9);
 
+	#ifndef API_DMA_MODE
+	// Enable SPI2
+	SPI_Cmd(SPI2, ENABLE);
+	#endif
+
+	#ifdef API_DMA_MODE
 	// ------------------
 	// DMA configuration
 	// ------------------
-
 	// De-initialise DMA Streams
 	DMA_DeInit(SPI2_TX_DMA_STREAM);
-	DMA_DeInit(SPI2_RX_DMA_STREAM);
+	//DMA_DeInit(SPI2_RX_DMA_STREAM);
 
 	// Configure DMA Initialisation Structure
-	DMA_InitStructure.DMA_BufferSize = BUFFERSIZE ;
-	DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable ;
-	DMA_InitStructure.DMA_FIFOThreshold = DMA_FIFOThreshold_1QuarterFull ;
-	DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single ;
-	DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
-	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
-	DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
-	DMA_InitStructure.DMA_PeripheralBaseAddr =(uint32_t) (&(SPI2->DR)) ;
-	DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
-	DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
-	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
-	DMA_InitStructure.DMA_Priority = DMA_Priority_High;
+	DMA_InitStructure.DMA_BufferSize 			= BUFFERSIZE;
+	DMA_InitStructure.DMA_FIFOMode 				= DMA_FIFOMode_Disable;
+	DMA_InitStructure.DMA_FIFOThreshold 		= DMA_FIFOThreshold_1QuarterFull;
+	DMA_InitStructure.DMA_MemoryBurst 			= DMA_MemoryBurst_Single;
+	DMA_InitStructure.DMA_MemoryDataSize 		= DMA_MemoryDataSize_Byte;
+	DMA_InitStructure.DMA_MemoryInc 			= DMA_MemoryInc_Enable;
+	DMA_InitStructure.DMA_Mode 					= DMA_Mode_Normal;
+	DMA_InitStructure.DMA_PeripheralBaseAddr 	= (uint32_t) (&(SPI2->DR));
+	DMA_InitStructure.DMA_PeripheralBurst 		= DMA_PeripheralBurst_Single;
+	DMA_InitStructure.DMA_PeripheralDataSize 	= DMA_PeripheralDataSize_Byte;
+	DMA_InitStructure.DMA_PeripheralInc 		= DMA_PeripheralInc_Disable;
+	DMA_InitStructure.DMA_Priority 				= DMA_Priority_High;
 
 	// Configure TX DMA
-	DMA_InitStructure.DMA_Channel = SPI2_TX_DMA_CHANNEL ;
-	DMA_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral ;
-	DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)(as.ou_buffer);
+	DMA_InitStructure.DMA_Channel 				= SPI2_TX_DMA_CHANNEL;
+	DMA_InitStructure.DMA_DIR 					= DMA_DIR_MemoryToPeripheral;
+	DMA_InitStructure.DMA_Memory0BaseAddr 		= (uint32_t)(as.ou_buffer);
+
 	DMA_Init(SPI2_TX_DMA_STREAM, &DMA_InitStructure);
 
 	// Configure RX DMA
-	DMA_InitStructure.DMA_Channel = SPI2_RX_DMA_CHANNEL ;
-	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory ;
-	DMA_InitStructure.DMA_Memory0BaseAddr =(uint32_t)aRxBuffer ;
-	DMA_Init(SPI2_RX_DMA_STREAM, &DMA_InitStructure);
+	//DMA_InitStructure.DMA_Channel 				= SPI2_RX_DMA_CHANNEL;
+	//DMA_InitStructure.DMA_DIR 					= DMA_DIR_PeripheralToMemory;
+	//DMA_InitStructure.DMA_Memory0BaseAddr 		= (uint32_t)aRxBuffer;
 
-	// Enable SPI2
-	SPI_Cmd(SPI2, ENABLE);
+	//DMA_Init(SPI2_RX_DMA_STREAM, &DMA_InitStructure);
+	#endif
 }
 
 // PA4 (usually DAC) is used for IRQ from UI CPU
 static void api_dsp_irq_init(void)
 {
+#ifndef API_DMA_MODE
 	GPIO_InitTypeDef GPIO_InitStructure;
 	EXTI_InitTypeDef EXTI_InitStructure;
 	NVIC_InitTypeDef NVIC_InitStructure;
@@ -241,6 +251,7 @@ static void api_dsp_irq_init(void)
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0F;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVIC_InitStructure);
+#endif
 }
 
 static uchar api_dsp_SendByteSpiA(uint8_t byte)
@@ -262,9 +273,9 @@ static uchar api_dsp_SendByteSpiA(uint8_t byte)
 //*----------------------------------------------------------------------------
 static void api_dsp_to_cpu_msg(ulong size)
 {
+	#ifndef API_DMA_MODE
 	// --------------------------------------------------------------------------
 	// Normal mode
-	#if 1
 	ulong i;
 
 	// CS Low - generate IRQ in the UI CPU
@@ -284,22 +295,39 @@ static void api_dsp_to_cpu_msg(ulong size)
 	GPIO_SetBits(GPIOA, GPIO_Pin_9);
 	#endif
 
+	#ifdef API_DMA_MODE
 	// --------------------------------------------------------------------------
 	// DMA mode
-	#if 0
+	ulong i;
+
 	// CS Low - generate IRQ in the UI CPU
 	GPIO_ResetBits(GPIOA, GPIO_Pin_9);
 
-	DMA_Cmd(SPI2_TX_DMA_STREAM,ENABLE);
-	SPI_I2S_DMACmd(SPI2, SPI_I2S_DMAReq_Tx, ENABLE);
+	for(i = 0; i < 10000; i++)
+		__asm(".hword 0x46C0");
 
-	while (DMA_GetFlagStatus(SPI2_TX_DMA_STREAM,SPI2_TX_DMA_FLAG_TCIF) == RESET);
+	DMA_Cmd(SPI2_TX_DMA_STREAM,				ENABLE);		// Enable DMA SPI TX Stream
+	//DMA_Cmd(SPI2_RX_DMA_STREAM,				ENABLE);		// Enable DMA SPI RX Stream
+	SPI_I2S_DMACmd(SPI2, SPI_I2S_DMAReq_Tx, ENABLE);		// Enable SPI DMA TX Requests
+	//SPI_I2S_DMACmd(SPI2, SPI_I2S_DMAReq_Rx, ENABLE);		// Enable SPI DMA RX Requests
+	SPI_Cmd(SPI2, 							ENABLE);		// Enable SPI
 
-	DMA_ClearFlag(SPI2_TX_DMA_STREAM,SPI2_TX_DMA_FLAG_TCIF);
-	DMA_Cmd(SPI2_TX_DMA_STREAM,DISABLE);
+	while(DMA_GetFlagStatus(SPI2_TX_DMA_STREAM,SPI2_TX_DMA_FLAG_TCIF) == RESET);
+	//while(DMA_GetFlagStatus(SPI2_RX_DMA_STREAM,SPI2_RX_DMA_FLAG_TCIF) == RESET);
 
 	// CS high - restore bus state
+	//__asm(".word 0x46C046C0");
 	GPIO_SetBits(GPIOA, GPIO_Pin_9);
+
+	DMA_ClearFlag(SPI2_TX_DMA_STREAM,SPI2_TX_DMA_FLAG_TCIF);
+	//DMA_ClearFlag(SPI2_RX_DMA_STREAM,SPI2_RX_DMA_FLAG_TCIF);
+
+	DMA_Cmd(SPI2_TX_DMA_STREAM,				DISABLE);		// DISABLE DMA SPI TX Stream
+	//DMA_Cmd(SPI2_RX_DMA_STREAM,				DISABLE);		// DISABLE DMA SPI RX Stream
+	SPI_I2S_DMACmd(SPI2, SPI_I2S_DMAReq_Tx, DISABLE);		// DISABLE SPI DMA TX Requests
+	//SPI_I2S_DMACmd(SPI2, SPI_I2S_DMAReq_Rx, DISABLE);		// DISABLE SPI DMA RX Requests
+	SPI_Cmd(SPI2, 							DISABLE);		// DISABLE SPI
+
 	#endif
 }
 
@@ -405,10 +433,10 @@ static void api_dsp_execute_command(void)
 		// Change broadcast mode
 		case API_BROADCAST_MODE:
 		{
-			api_broadcast_type = as.in_buffer[0x02];
+			as.api_broadcast_type = as.in_buffer[0x02];
 
 			// Switch on the decimation handler in the UI driver while in FT8 mode
-			if(api_broadcast_type == 2)
+			if(as.api_broadcast_type == 2)
 				ts.dvmode = 1;
 			else
 				ts.dvmode = 0;
@@ -488,6 +516,12 @@ void api_dsp_init(void)
 	df.tune_upd 		= 0;
 	ts.api_iamb_type 	= 0;	// nothing
 
+	// Local init
+	as.api_broadcast_type 	= 1;
+	as.pub_v 				= 0;
+	as.led_s 				= 0;
+	as.pro_s 				= 0;
+
 	// HW init
 	api_dsp_spi_init();
 	api_dsp_irq_init();
@@ -506,21 +540,21 @@ void api_dsp_thread(void)
 	ushort i;
 	ulong timeout = 5000;
 
-	if(api_broadcast_type == 2)
+	if(as.api_broadcast_type == 2)
 		timeout = 10;
 
 	// Re-route audio driver samples to UI board
 	// in FT8 mode
 	//api_dsp_samples_post();
 
-	if(pro_s < timeout)
+	if(as.pro_s < timeout)
 	{
-		pro_s++;
+		(as.pro_s)++;
 		return;
 	}
-	pro_s = 0;
+	as.pro_s = 0;
 
-	led_s = !led_s;
+	as.led_s = !(as.led_s);
 
 	api_dsp_samples_post();
 }
@@ -535,6 +569,7 @@ void api_dsp_thread(void)
 //*----------------------------------------------------------------------------
 void api_dsp_irq(void)
 {
+	#ifndef API_DMA_MODE
 	uchar i;
 
 	for(i = 0; i < 16; i++)
@@ -542,6 +577,7 @@ void api_dsp_irq(void)
 
 	// Process request
 	api_dsp_execute_command();
+	#endif
 }
 
 ulong 	sample_count = 0;
@@ -549,7 +585,7 @@ ulong 	sample_count = 0;
 
 static void api_dsp_samples_post(void)
 {
-	if(api_broadcast_type != 2)
+	if(as.api_broadcast_type != 2)
 		return;
 
 	printf("sample_count %d\n\r",sample_count);
@@ -588,7 +624,7 @@ void api_dsp_post(q15_t *fft)
 	ulong tune_loc;
 
 	// Broadcast required for waterfall/scope data ?
-	if(api_broadcast_type != 1)
+	if(as.api_broadcast_type != 1)
 		return;
 
 	//tune_loc = df.tune_new;
@@ -602,8 +638,8 @@ void api_dsp_post(q15_t *fft)
 	// Header
 	as.ou_buffer[0x00] = 0x12; 						// signature
 	as.ou_buffer[0x01] = 0x34;						// signature
-	as.ou_buffer[0x02] = led_s;						// blinker
-	as.ou_buffer[0x03] = pub_v;						// seq cnt
+	as.ou_buffer[0x02] = as.led_s;					// blinker
+	as.ou_buffer[0x03] = as.pub_v;					// seq cnt
 
 	// DSP Version
 	as.ou_buffer[0x04] = TRX4M_VER_MAJOR;
@@ -654,7 +690,7 @@ void api_dsp_post(q15_t *fft)
 	// Broadcast current state
 	api_dsp_to_cpu_msg(300);
 
-	pub_v++;
+	(as.pub_v)++;
 }
 
 #endif
