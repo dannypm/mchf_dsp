@@ -43,9 +43,9 @@
 #define SPI2_TX_DMA_STREAM             	DMA1_Stream4
 #define SPI2_TX_DMA_FLAG_TCIF          	DMA_FLAG_TCIF4
 
-//#define SPI2_RX_DMA_CHANNEL            	DMA_Channel_0
-//#define SPI2_RX_DMA_STREAM            	DMA2_Stream2
-//#define SPI2_RX_DMA_FLAG_TCIF          	DMA_FLAG_TCIF2
+#define SPI2_RX_DMA_CHANNEL            	DMA_Channel_0
+#define SPI2_RX_DMA_STREAM            	DMA2_Stream2
+#define SPI2_RX_DMA_FLAG_TCIF          	DMA_FLAG_TCIF2
 
 // Exports
 void api_dsp_init(void);

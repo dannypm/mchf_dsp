@@ -86,6 +86,9 @@ API_STATE as;
 //uchar led_s = 0;
 //ulong pro_s = 0;
 
+static void api_dsp_execute_command(void);
+static uchar api_dsp_SendByteSpiA(uint8_t byte);
+
 //*----------------------------------------------------------------------------
 //* Function Name       : UiLcdHy28_SpiInit
 //* Object              :
@@ -104,7 +107,10 @@ static void api_dsp_spi_init()
 
 	#ifdef API_DMA_MODE
 	// Enable DMA clock
-	//RCC_AHB1PeriphClockCmd(SPI2_DMA_CLK, ENABLE);
+	//--RCC_AHB1PeriphClockCmd(SPI2_DMA_CLK, ENABLE);
+	//
+	// Already enabled by Audio driver (DMA1)
+	//
 	#endif
 
 	// Common SPI settings
@@ -136,9 +142,18 @@ static void api_dsp_spi_init()
 	SPI_InitStructure.SPI_CPOL 				= SPI_CPOL_High;
 	SPI_InitStructure.SPI_CPHA 				= SPI_CPHA_2Edge;
 	SPI_InitStructure.SPI_NSS 				= SPI_NSS_Soft;
-	SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_32;
 	SPI_InitStructure.SPI_FirstBit 			= SPI_FirstBit_MSB;
+
+	#ifndef API_DMA_MODE
+	SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_32;
 	SPI_InitStructure.SPI_Mode 				= SPI_Mode_Master;
+	#endif
+
+	#ifdef API_DMA_MODE
+	SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_2;
+	SPI_InitStructure.SPI_Mode 				= SPI_Mode_Slave;
+	#endif
+
 	SPI_Init(SPI2, &SPI_InitStructure);
 
 	// Enable SPI2
@@ -176,7 +191,7 @@ static void api_dsp_spi_init()
 	// ------------------
 	// De-initialise DMA Streams
 	DMA_DeInit(SPI2_TX_DMA_STREAM);
-	//DMA_DeInit(SPI2_RX_DMA_STREAM);
+	DMA_DeInit(SPI2_RX_DMA_STREAM);
 
 	// Configure DMA Initialisation Structure
 	DMA_InitStructure.DMA_BufferSize 			= BUFFERSIZE;
@@ -196,22 +211,19 @@ static void api_dsp_spi_init()
 	DMA_InitStructure.DMA_Channel 				= SPI2_TX_DMA_CHANNEL;
 	DMA_InitStructure.DMA_DIR 					= DMA_DIR_MemoryToPeripheral;
 	DMA_InitStructure.DMA_Memory0BaseAddr 		= (uint32_t)(as.ou_buffer);
-
 	DMA_Init(SPI2_TX_DMA_STREAM, &DMA_InitStructure);
 
 	// Configure RX DMA
-	//DMA_InitStructure.DMA_Channel 				= SPI2_RX_DMA_CHANNEL;
-	//DMA_InitStructure.DMA_DIR 					= DMA_DIR_PeripheralToMemory;
-	//DMA_InitStructure.DMA_Memory0BaseAddr 		= (uint32_t)aRxBuffer;
-
-	//DMA_Init(SPI2_RX_DMA_STREAM, &DMA_InitStructure);
+	DMA_InitStructure.DMA_Channel 				= SPI2_RX_DMA_CHANNEL;
+	DMA_InitStructure.DMA_DIR 					= DMA_DIR_PeripheralToMemory;
+	DMA_InitStructure.DMA_Memory0BaseAddr 		= (uint32_t)(aRxBuffer);
+	DMA_Init(SPI2_RX_DMA_STREAM, &DMA_InitStructure);
 	#endif
 }
 
 // PA4 (usually DAC) is used for IRQ from UI CPU
 static void api_dsp_irq_init(void)
 {
-#ifndef API_DMA_MODE
 	GPIO_InitTypeDef GPIO_InitStructure;
 	EXTI_InitTypeDef EXTI_InitStructure;
 	NVIC_InitTypeDef NVIC_InitStructure;
@@ -251,9 +263,50 @@ static void api_dsp_irq_init(void)
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0F;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVIC_InitStructure);
-#endif
 }
 
+//*----------------------------------------------------------------------------
+//* Function Name       : api_dsp_irq
+//* Object              : Change state to command processing
+//* Notes    			:
+//* Notes   			:
+//* Notes    			:
+//* Context    			: CONTEXT_RESET_VECTOR
+//*----------------------------------------------------------------------------
+void api_dsp_irq(void)
+{
+	#ifndef API_DMA_MODE
+	uchar i;
+
+	for(i = 0; i < 16; i++)
+		as.in_buffer[i] = api_dsp_SendByteSpiA(0);
+
+	// Process request
+	api_dsp_execute_command();
+	#endif
+
+	#ifdef API_DMA_MODE
+	DMA_Cmd(SPI2_TX_DMA_STREAM,				ENABLE);		// Enable DMA SPI TX Stream
+	DMA_Cmd(SPI2_RX_DMA_STREAM,				ENABLE);		// Enable DMA SPI RX Stream
+	SPI_I2S_DMACmd(SPI2, SPI_I2S_DMAReq_Tx, ENABLE);		// Enable SPI DMA TX Requests
+	SPI_I2S_DMACmd(SPI2, SPI_I2S_DMAReq_Rx, ENABLE);		// Enable SPI DMA RX Requests
+	SPI_Cmd(SPI2, 							ENABLE);		// Enable SPI
+
+	while(DMA_GetFlagStatus(SPI2_TX_DMA_STREAM,SPI2_TX_DMA_FLAG_TCIF) == RESET);
+	while(DMA_GetFlagStatus(SPI2_RX_DMA_STREAM,SPI2_RX_DMA_FLAG_TCIF) == RESET);
+
+	DMA_ClearFlag(SPI2_TX_DMA_STREAM,SPI2_TX_DMA_FLAG_TCIF);
+	DMA_ClearFlag(SPI2_RX_DMA_STREAM,SPI2_RX_DMA_FLAG_TCIF);
+
+	DMA_Cmd(SPI2_TX_DMA_STREAM,				DISABLE);		// DISABLE DMA SPI TX Stream
+	DMA_Cmd(SPI2_RX_DMA_STREAM,				DISABLE);		// DISABLE DMA SPI RX Stream
+	SPI_I2S_DMACmd(SPI2, SPI_I2S_DMAReq_Tx, DISABLE);		// DISABLE SPI DMA TX Requests
+	SPI_I2S_DMACmd(SPI2, SPI_I2S_DMAReq_Rx, DISABLE);		// DISABLE SPI DMA RX Requests
+	SPI_Cmd(SPI2, 							DISABLE);		// DISABLE SPI
+	#endif
+}
+
+#ifndef API_DMA_MODE
 static uchar api_dsp_SendByteSpiA(uint8_t byte)
 {
 	while (SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_TXE)  == RESET);
@@ -262,6 +315,7 @@ static uchar api_dsp_SendByteSpiA(uint8_t byte)
 	while (SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_RXNE) == RESET);
 	return (uchar)SPI_I2S_ReceiveData(SPI2);
 }
+#endif
 
 //*----------------------------------------------------------------------------
 //* Function Name       : api_dsp_to_cpu_msg
@@ -295,7 +349,7 @@ static void api_dsp_to_cpu_msg(ulong size)
 	GPIO_SetBits(GPIOA, GPIO_Pin_9);
 	#endif
 
-	#ifdef API_DMA_MODE
+/*	#ifdef API_DMA_MODE
 	// --------------------------------------------------------------------------
 	// DMA mode
 	ulong i;
@@ -328,7 +382,7 @@ static void api_dsp_to_cpu_msg(ulong size)
 	//SPI_I2S_DMACmd(SPI2, SPI_I2S_DMAReq_Rx, DISABLE);		// DISABLE SPI DMA RX Requests
 	SPI_Cmd(SPI2, 							DISABLE);		// DISABLE SPI
 
-	#endif
+	#endif*/
 }
 
 //*----------------------------------------------------------------------------
@@ -346,6 +400,7 @@ static void api_dsp_execute_command(void)
 
 	// Two bytes
 	cmd = (as.in_buffer[0] << 8) | (as.in_buffer[1]);
+	//printf("cmd %04x\n\r",cmd);
 
 	// Process
 	switch(cmd)
@@ -557,27 +612,6 @@ void api_dsp_thread(void)
 	as.led_s = !(as.led_s);
 
 	api_dsp_samples_post();
-}
-
-//*----------------------------------------------------------------------------
-//* Function Name       : api_dsp_irq
-//* Object              : Change state to command processing
-//* Notes    			:
-//* Notes   			:
-//* Notes    			:
-//* Context    			: CONTEXT_RESET_VECTOR
-//*----------------------------------------------------------------------------
-void api_dsp_irq(void)
-{
-	#ifndef API_DMA_MODE
-	uchar i;
-
-	for(i = 0; i < 16; i++)
-		as.in_buffer[i] = api_dsp_SendByteSpiA(0);
-
-	// Process request
-	api_dsp_execute_command();
-	#endif
 }
 
 ulong 	sample_count = 0;
